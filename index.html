@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dieta Ale">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<title>Dieta Ale</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ANTI-CRASH ERROR HANDLER -->
+<script>
+window.onerror=function(m,s,l,c,e){
+  var d=document.getElementById('crash-screen');
+  if(!d){d=document.createElement('div');d.id='crash-screen';document.body.appendChild(d);}
+  d.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#1a0000;color:#ff4444;padding:32px 20px;font-family:monospace;font-size:14px;overflow:auto';
+  d.innerHTML='<h2 style="color:#ff6666;margin-bottom:16px">⚠️ Errore Critico</h2>'
+    +'<p><b>Messaggio:</b> '+m+'</p>'
+    +'<p><b>File:</b> '+(s||'?')+'</p>'
+    +'<p><b>Riga:</b> '+l+' Col: '+c+'</p>'
+    +'<p style="margin-top:12px;color:#ff8888;font-size:12px;white-space:pre-wrap">'+(e&&e.stack?e.stack:'')+'</p>'
+    +'<button onclick="location.reload()" style="margin-top:20px;padding:12px 24px;background:#ff4444;color:#fff;border:none;border-radius:8px;font-size:16px;cursor:pointer">Ricarica App</button>';
+  return false;
+};
+</script>
+
+<div id="app">
+
+<!-- ===== HOME ===== -->
+<div id="pg-home" class="page on">
+  <div class="phdr">
+    <div><h1>Dieta Ale</h1><p class="phdr-sub" id="h-date"></p></div>
+    <span class="badge badge-g" id="h-badge">GYM</span>
+  </div>
+  <div class="iob">
+    <div class="iob-v" id="h-iob">0.0 U</div>
+    <div class="iob-l">IOB — Insulina Attiva</div>
+  </div>
+  <div class="card">
+    <div class="card-hd">Macros Oggi</div>
+    <div class="rings" id="h-rings"></div>
+    <div id="h-bars"></div>
+  </div>
+  <div class="card">
+    <div class="card-hd">Prossimo Pasto</div>
+    <div id="h-next"></div>
+  </div>
+  <div class="card">
+    <div class="card-hd">Bolo Consigliato</div>
+    <div id="h-bolo"></div>
+  </div>
+</div>
+
+<!-- ===== OGGI ===== -->
+<div id="pg-oggi" class="page">
+  <div class="phdr"><h1>Oggi</h1></div>
+  <div class="dtype" id="o-dtype"></div>
+  <div class="card">
+    <div class="card-hd">Glicemia</div>
+    <div class="r8">
+      <div><input type="number" class="inp" id="i-gly" placeholder="mg/dL" inputmode="numeric"></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn btn-g" onclick="A.saveGly()">Salva</button></div>
+    </div>
+  </div>
+  <div id="o-meals"></div>
+  <div class="ctxt"><button class="btn btn-sm btn-o" onclick="A.openReorder('oggi')">↕️ Riordina Pasti</button></div>
+</div>
+
+<!-- ===== AGENDA ===== -->
+<div id="pg-agenda" class="page">
+  <div class="phdr"><h1>Agenda</h1></div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <button class="btn btn-sm btn-o" onclick="A.calNav(-1)">◀</button>
+      <span id="cal-mo" style="font-size:16px;font-weight:700"></span>
+      <button class="btn btn-sm btn-o" onclick="A.calNav(1)">▶</button>
+    </div>
+    <div class="cal-g" id="cal-g"></div>
+  </div>
+  <div id="ag-detail" class="card" style="display:none"></div>
+</div>
+
+<!-- ===== PIANO ===== -->
+<div id="pg-piano" class="page">
+  <div class="phdr"><h1>Piano Dieta</h1></div>
+  <div class="dsel" id="d-sel"></div>
+  <div style="display:flex;gap:6px;margin-bottom:12px">
+    <button class="btn btn-sm btn-g" onclick="A.newDiet()">+ Nuova</button>
+    <button class="btn btn-sm btn-o" onclick="A.renDiet()">Rinomina</button>
+    <button class="btn btn-sm btn-o" onclick="A.delDiet()">Elimina</button>
+  </div>
+  <div class="dtype" id="p-dtype"></div>
+  <div id="p-meals"></div>
+  <div class="ctxt"><button class="btn btn-sm btn-o" onclick="A.addMealPlan()">+ Aggiungi Pasto</button></div>
+  <div class="ctxt"><button class="btn btn-sm btn-o" onclick="A.openReorder('piano')">↕️ Riordina Pasti</button></div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-sm btn-bl" onclick="A.expDiet()">Esporta JSON</button>
+    <button class="btn btn-sm btn-v" onclick="A.openMdl('m-import')">Importa JSON</button>
+  </div>
+</div>
+
+<!-- ===== DIARIO ===== -->
+<div id="pg-diario" class="page">
+  <div class="phdr"><h1>Diario</h1></div>
+  <div class="chwrap"><canvas id="ch-gly"></canvas></div>
+  <div class="card"><div class="card-hd">Statistiche 7 Giorni</div><div id="di-stats"></div></div>
+  <div class="ctxt"><button class="btn btn-sm btn-o btn-bk" onclick="A.expCSV()">Esporta CSV</button></div>
+  <div id="di-hist"></div>
+</div>
+
+<!-- ===== IMPOSTAZIONI ===== -->
+<div id="pg-set" class="page">
+  <div class="phdr"><h1>Impostazioni</h1></div>
+  <div class="card">
+    <div class="card-hd">Parametri Insulina</div>
+    <div class="r8">
+      <div><label class="inp-lbl">ISF (mg/dL/U)</label><input type="number" class="inp" id="s-isf" inputmode="decimal"></div>
+      <div><label class="inp-lbl">I:C (g/U)</label><input type="number" class="inp" id="s-icr" inputmode="decimal"></div>
+    </div>
+    <div class="r8">
+      <div><label class="inp-lbl">Target (mg/dL)</label><input type="number" class="inp" id="s-tgt" inputmode="numeric"></div>
+      <div><label class="inp-lbl">DIA (min)</label><input type="number" class="inp" id="s-dia" inputmode="numeric"></div>
+    </div>
+    <div class="r8">
+      <div><label class="inp-lbl">GP Ratio (g/U)</label><input type="number" class="inp" id="s-gpr" inputmode="decimal"></div>
+      <div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">Bolo Frazionato</div>
+    <div class="tgl-row">
+      <span style="font-size:14px">Attiva Bolo 60/40</span>
+      <button class="tgl" id="s-spl" onclick="A.tglSplit()"><span class="tgl-k"></span></button>
+    </div>
+    <div id="spl-set" style="margin-top:10px;display:none">
+      <div class="r8">
+        <div><label class="inp-lbl">% Inizio Pasto</label><input type="number" class="inp" id="s-sp1" inputmode="numeric" value="60"></div>
+        <div><label class="inp-lbl">% Fine Pasto</label><input type="number" class="inp" id="s-sp2" inputmode="numeric" value="40"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">Reminder Bolo 2</div>
+    <div class="tgl-row">
+      <span style="font-size:14px">Notifica Bolo Integrativo</span>
+      <button class="tgl" id="s-rem" onclick="A.tglRem()"><span class="tgl-k"></span></button>
+    </div>
+    <div class="r8" style="margin-top:8px">
+      <div><label class="inp-lbl">Ritardo (min)</label><input type="number" class="inp" id="s-rdel" inputmode="numeric" value="150"></div>
+      <div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">Alimenti Personalizzati</div>
+    <button class="btn btn-sm btn-o btn-bk" onclick="A.openCFood()">Gestisci Alimenti</button>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">Dati</div>
+    <button class="btn btn-sm btn-o btn-bk" onclick="A.resetAll()">Reset Completo</button>
+    <div style="font-size:11px;color:#6B6B7A;text-align:center;margin-top:8px">Dieta Ale v4.1</div>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<!-- TABBAR -->
+<nav class="tabbar">
+  <button class="tab on" onclick="A.go('home')"><span class="ti">🏠</span>Home</button>
+  <button class="tab" onclick="A.go('oggi')"><span class="ti">✅</span>Oggi</button>
+  <button class="tab" onclick="A.go('agenda')"><span class="ti">📅</span>Agenda</button>
+  <button class="tab" onclick="A.go('piano')"><span class="ti">🥗</span>Piano</button>
+  <button class="tab" onclick="A.go('diario')"><span class="ti">📊</span>Diario</button>
+  <button class="tab" onclick="A.go('set')"><span class="ti">⚙️</span>Impost.</button>
+</nav>
+
+<!-- ===== MODALS ===== -->
+
+<!-- EDIT MEAL -->
+<div class="mbg" id="m-edit">
+<div class="mdl">
+  <div class="mdl-hd"><span id="me-title">Modifica Pasto</span><button class="mdl-x" onclick="A.closeMdl('m-edit')">✕</button></div>
+  <div class="r8"><div><label class="inp-lbl">Nome Pasto</label><input type="text" class="inp" id="me-name"></div><div><label class="inp-lbl">Ora</label><input type="time" class="inp" id="me-time"></div></div>
+  <div style="margin-bottom:10px"><div class="card-hd">Alimenti</div><div id="me-foods"></div>
+  <button class="btn btn-sm btn-o" style="margin-top:8px" onclick="A.openAddFood()">+ Aggiungi Alimento</button></div>
+  <button class="btn btn-g btn-bk" onclick="A.saveEdit()">Salva Pasto</button>
+</div></div>
+
+<!-- ADD FOOD -->
+<div class="mbg" id="m-addfood">
+<div class="mdl">
+  <div class="mdl-hd"><span>Aggiungi Alimento</span><button class="mdl-x" onclick="A.closeMdl('m-addfood')">✕</button></div>
+  <div class="chips" id="f-cats"></div>
+  <div class="srch"><span class="si">🔍</span><input type="text" class="inp" id="f-srch" placeholder="Cerca alimento..." oninput="A.filterF()"></div>
+  <div class="sres" id="f-res"></div>
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid #2A2A36">
+    <button class="btn btn-sm btn-o btn-bk" onclick="A.startScan()">📷 Scansiona Barcode</button>
+  </div>
+</div></div>
+
+<!-- FOOD GRAMS -->
+<div class="mbg" id="m-grams">
+<div class="mdl">
+  <div class="mdl-hd"><span id="fg-title">Quantità</span><button class="mdl-x" onclick="A.closeMdl('m-grams')">✕</button></div>
+  <div id="fg-info" style="font-size:13px;color:#9898A6;margin-bottom:12px"></div>
+  <div class="r8"><div><label class="inp-lbl">Grammi</label><input type="number" class="inp" id="fg-g" inputmode="numeric" value="100" oninput="A.prevGrams()"></div></div>
+  <div id="fg-prev" style="font-size:13px;color:#9898A6;margin-bottom:12px"></div>
+  <button class="btn btn-g btn-bk" onclick="A.confirmFood()">Aggiungi</button>
+</div></div>
+
+<!-- IMPORT JSON -->
+<div class="mbg" id="m-import">
+<div class="mdl">
+  <div class="mdl-hd"><span>Importa Dieta JSON</span><button class="mdl-x" onclick="A.closeMdl('m-import')">✕</button></div>
+  <textarea class="inp" id="imp-txt" rows="8" placeholder="Incolla il JSON qui..."></textarea>
+  <button class="btn btn-g btn-bk" style="margin-top:10px" onclick="A.impDiet()">Importa</button>
+</div></div>
+
+<!-- CUSTOM FOOD -->
+<div class="mbg" id="m-cfood">
+<div class="mdl">
+  <div class="mdl-hd"><span>Alimenti Personalizzati</span><button class="mdl-x" onclick="A.closeMdl('m-cfood')">✕</button></div>
+  <div id="cf-list" style="margin-bottom:12px"></div>
+  <div class="card-hd">Nuovo Alimento</div>
+  <div class="r8"><div><label class="inp-lbl">Nome</label><input type="text" class="inp" id="cf-name"></div></div>
+  <div class="r8"><div><label class="inp-lbl">Categoria</label><input type="text" class="inp" id="cf-cat" placeholder="es: Proteine"></div></div>
+  <div class="r8"><div><label class="inp-lbl">Kcal/100g</label><input type="number" class="inp" id="cf-kcal" inputmode="numeric"></div><div><label class="inp-lbl">Carb/100g</label><input type="number" class="inp" id="cf-carb" inputmode="decimal"></div></div>
+  <div class="r8"><div><label class="inp-lbl">Prot/100g</label><input type="number" class="inp" id="cf-prot" inputmode="decimal"></div><div><label class="inp-lbl">Grassi/100g</label><input type="number" class="inp" id="cf-fat" inputmode="decimal"></div></div>
+  <div class="r8"><div><label class="inp-lbl">Fibre/100g</label><input type="number" class="inp" id="cf-fib" inputmode="decimal"></div><div></div></div>
+  <button class="btn btn-g btn-bk" onclick="A.saveCF()">Salva Alimento</button>
+</div></div>
+
+<!-- BARCODE -->
+<div class="mbg" id="m-barcode">
+<div class="mdl">
+  <div class="mdl-hd"><span>Scansiona Barcode</span><button class="mdl-x" onclick="A.stopScan();A.closeMdl('m-barcode')">✕</button></div>
+  <video class="bvid" id="bc-vid" autoplay playsinline></video>
+  <div style="margin-top:10px">
+    <label class="inp-lbl">Oppure inserisci manualmente:</label>
+    <div class="r8"><div><input type="text" class="inp" id="bc-man" placeholder="Codice EAN" inputmode="numeric"></div>
+    <div style="display:flex;align-items:flex-end"><button class="btn btn-g" onclick="A.lookupBC()">Cerca</button></div></div>
+  </div>
+  <div id="bc-res" style="margin-top:10px"></div>
+</div></div>
+
+<!-- BOLUS DETAIL -->
+<div class="mbg" id="m-bolo">
+<div class="mdl">
+  <div class="mdl-hd"><span>Dettaglio Bolo</span><button class="mdl-x" onclick="A.closeMdl('m-bolo')">✕</button></div>
+  <div id="bo-detail"></div>
+  <button class="btn btn-g btn-bk" style="margin-top:12px" onclick="A.confirmBolo()">Conferma Bolo</button>
+</div></div>
+
+<!-- REORDER -->
+<div class="mbg" id="m-reorder">
+<div class="mdl">
+  <div class="mdl-hd"><span>Riordina Pasti</span><button class="mdl-x" onclick="A.closeMdl('m-reorder')">✕</button></div>
+  <div id="re-list"></div>
+  <button class="btn btn-g btn-bk" style="margin-top:12px" onclick="A.saveReorder()">Salva Ordine</button>
+</div></div>
+
+<!-- NOTIFICATION BANNER -->
+<div class="nbar" id="nbar"></div>
+
+<!-- SERVICE WORKER REGISTRATION -->
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(function(){});
+}
+</script>
+
+<!-- APP SCRIPTS (order matters!) -->
+<script src="database.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>

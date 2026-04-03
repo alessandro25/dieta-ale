@@ -1,0 +1,23 @@
+{
+  "name": "Dieta Ale",
+  "short_name": "Dieta Ale",
+  "description": "Gestione alimentazione e insulina — Diabete T1",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#131318",
+  "theme_color": "#131318",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
