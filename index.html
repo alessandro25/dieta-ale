@@ -152,9 +152,21 @@ window.onerror=function(m,s,l,c,e){
       <span style="font-size:14px">Notifica Bolo Integrativo</span>
       <button class="tgl" id="s-rem" onclick="A.tglRem()"><span class="tgl-k"></span></button>
     </div>
+    <div class="tgl-row">
+      <span style="font-size:14px">Alert sonoro/vibrazione Bolo 2</span>
+      <button class="tgl on" id="s-b2a" onclick="A.tglB2A()"><span class="tgl-k"></span></button>
+    </div>
     <div class="r8" style="margin-top:8px">
       <div><label class="inp-lbl">Ritardo (min)</label><input type="number" class="inp" id="s-rdel" inputmode="numeric" value="150"></div>
       <div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">Notifica Correzione</div>
+    <div class="tgl-row">
+      <span style="font-size:14px">Alert quando glicemia alta</span>
+      <button class="tgl" id="s-corr" onclick="A.tglCorr()"><span class="tgl-k"></span></button>
     </div>
   </div>
 
@@ -166,7 +178,7 @@ window.onerror=function(m,s,l,c,e){
   <div class="card">
     <div class="card-hd">Dati</div>
     <button class="btn btn-sm btn-o btn-bk" onclick="A.resetAll()">Reset Completo</button>
-    <div style="font-size:11px;color:#6B6B7A;text-align:center;margin-top:8px">Dieta Ale v4.1</div>
+    <div style="font-size:11px;color:#6B6B7A;text-align:center;margin-top:8px">Dieta Ale v4.2</div>
   </div>
 </div>
 
@@ -265,6 +277,30 @@ window.onerror=function(m,s,l,c,e){
   <div class="mdl-hd"><span>Riordina Pasti</span><button class="mdl-x" onclick="A.closeMdl('m-reorder')">✕</button></div>
   <div id="re-list"></div>
   <button class="btn btn-g btn-bk" style="margin-top:12px" onclick="A.saveReorder()">Salva Ordine</button>
+</div></div>
+
+<!-- CORRECTION ALERT (Mod 3) -->
+<div class="mbg" id="m-corr">
+<div class="mdl">
+  <div class="mdl-hd"><span>Correzione Glicemia</span><button class="mdl-x" onclick="A.closeMdl('m-corr')">✕</button></div>
+  <div id="corr-detail"></div>
+  <button class="btn btn-g btn-bk" style="margin-top:12px" onclick="A.closeMdl('m-corr')">OK</button>
+</div></div>
+
+<!-- DELTA BOLO (Mod 4) -->
+<div class="mbg" id="m-delta">
+<div class="mdl">
+  <div class="mdl-hd"><span>Bolo Aggiuntivo</span><button class="mdl-x" onclick="A.closeMdl('m-delta')">✕</button></div>
+  <div id="delta-detail"></div>
+  <button class="btn btn-g btn-bk" style="margin-top:12px" onclick="A.closeMdl('m-delta')">OK</button>
+</div></div>
+
+<!-- BOLO 2 ALERT (Mod 5) -->
+<div class="mbg" id="m-b2alert">
+<div class="mdl">
+  <div class="mdl-hd"><span>Promemoria Bolo 2</span><button class="mdl-x" onclick="A.closeMdl('m-b2alert')">✕</button></div>
+  <div id="b2-alert-detail"></div>
+  <button class="btn btn-g btn-bk" style="margin-top:12px" onclick="A.closeMdl('m-b2alert')">Fatto ✓</button>
 </div></div>
 
 <!-- NOTIFICATION BANNER -->
