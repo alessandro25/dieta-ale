@@ -1,7 +1,9 @@
 /* =============================================
-   DIETA ALE v4.1 — APP LOGIC
+   DIETA ALE v4.2 — APP LOGIC
    Safari iOS compatible: NO ?. ?? ||= ??=
    Depends on: database.js (FOOD_DB, DEF_S, DEF_GYM, DEF_REST)
+   v4.2: editable nutrients, agenda planning, corr alert,
+         add food post-complete, enhanced bolo2 alert
    ============================================= */
 
 /* ---------- HELPERS ---------- */
@@ -40,6 +42,7 @@ var selCat='';
 var glyChart=null;
 var bcStream=null;
 var ringCharts=[];
+var agendaEditDay='';
 
 /* ---------- APP NAMESPACE ---------- */
 var A={};
@@ -92,7 +95,13 @@ function calcM(foods){
     var fd=findF(foods[i].n);
     if(!fd)continue;
     var r=foods[i].g/100;
-    m.kcal+=fd.k*r;m.carb+=fd.ca*r;m.prot+=fd.p*r;m.fat+=fd.f*r;m.fiber+=fd.fi*r;
+    var ov=foods[i].ov;
+    var k=ov&&typeof ov.k==='number'?ov.k:fd.k;
+    var ca=ov&&typeof ov.ca==='number'?ov.ca:fd.ca;
+    var p=ov&&typeof ov.p==='number'?ov.p:fd.p;
+    var f=ov&&typeof ov.f==='number'?ov.f:fd.f;
+    var fi=ov&&typeof ov.fi==='number'?ov.fi:fd.fi;
+    m.kcal+=k*r;m.carb+=ca*r;m.prot+=p*r;m.fat+=f*r;m.fiber+=fi*r;
   }
   return{kcal:r1(m.kcal),carb:r1(m.carb),prot:r1(m.prot),fat:r1(m.fat),fiber:r1(m.fiber)};
 }
@@ -170,6 +179,10 @@ function loadSettings(){
   $('spl-set').style.display=S.splitBolus?'block':'none';
   var rt=$('s-rem');
   if(S.reminder){rt.classList.add('on')}else{rt.classList.remove('on')}
+  var ct=$('s-corr');
+  if(ct){if(S.corrNotify){ct.classList.add('on')}else{ct.classList.remove('on')}}
+  var b2t=$('s-b2a');
+  if(b2t){if(S.b2alert!==false){b2t.classList.add('on')}else{b2t.classList.remove('on')}}
 }
 
 function readSettings(){
@@ -196,6 +209,20 @@ A.tglRem=function(){
   S.reminder=!S.reminder;
   var rt=$('s-rem');
   if(S.reminder){rt.classList.add('on')}else{rt.classList.remove('on')}
+  save();
+};
+
+A.tglCorr=function(){
+  S.corrNotify=!S.corrNotify;
+  var ct=$('s-corr');
+  if(S.corrNotify){ct.classList.add('on')}else{ct.classList.remove('on')}
+  save();
+};
+
+A.tglB2A=function(){
+  if(S.b2alert===false){S.b2alert=true}else{S.b2alert=false}
+  var bt=$('s-b2a');
+  if(S.b2alert!==false){bt.classList.add('on')}else{bt.classList.remove('on')}
   save();
 };
 
@@ -370,6 +397,7 @@ A.rOggi=function(){
     h+='</div><div class="ma">';
     h+='<button class="btn btn-sm btn-o" onclick="A.editOggi('+i+')">✏️ Modifica</button>';
     if(!dn) h+='<button class="btn btn-sm btn-bl" onclick="A.showBolo('+i+')">💉 Bolo</button>';
+    if(dn) h+='<button class="btn btn-sm btn-v" onclick="A.addExtraFood('+i+')">+ Aggiungi Cibo</button>';
     h+='</div></div>';
   }
   $('o-meals').innerHTML=h;
@@ -402,6 +430,24 @@ A.togMeal=function(i,done){
   save();A.rOggi();A.rHome();
 };
 
+/* ---------- ADD EXTRA FOOD TO COMPLETED MEAL ---------- */
+var extraMealIdx=-1;
+var extraOldMacros=null;
+
+A.addExtraFood=function(i){
+  extraMealIdx=i;
+  var ds=todayStr();
+  if(!D[ds]||!D[ds].meals)return;
+  var ml=D[ds].meals[i];if(!ml)return;
+  extraOldMacros=calcM(ml.foods);
+  editIdx=i;editCtx='oggi';
+  $('me-title').textContent='Aggiungi a — '+ml.name;
+  $('me-name').value=ml.name;
+  $('me-time').value=ml.time;
+  tmpFoods=deepCopy(ml.foods);
+  rEditFoods();A.openMdl('m-edit');
+};
+
 A.saveGly=function(){
   var val=parseInt($('i-gly').value);
   if(isNaN(val)||val<30||val>600){A.notify('Valore non valido');return}
@@ -412,6 +458,35 @@ A.saveGly=function(){
   save();$('i-gly').value='';
   A.notify('Glicemia: '+val+' mg/dL');
   A.rHome();
+  /* Mod 3: Correction bolus alert */
+  if(S.corrNotify&&val>S.target){
+    var corr=r2((val-S.target)/S.isf);
+    setTimeout(function(){
+      A.showCorrAlert(val,corr);
+    },600);
+  }
+};
+
+/* ---------- CORRECTION ALERT ---------- */
+A.showCorrAlert=function(gly,corr){
+  var iob=calcIOB();
+  var net=r2(corr-iob);if(net<0)net=0;
+  var h='<div style="text-align:center;margin-bottom:12px">';
+  h+='<div style="font-size:42px;margin-bottom:4px">⚠️</div>';
+  h+='<div style="font-size:18px;font-weight:700;color:#FBBC2C">Glicemia Alta</div></div>';
+  h+='<div style="background:#24242E;border-radius:12px;padding:14px;margin-bottom:10px">';
+  h+='<div class="brow"><span class="blbl">Glicemia attuale</span><span class="bval" style="color:#EF6B6B">'+gly+' mg/dL</span></div>';
+  h+='<div class="brow"><span class="blbl">Target</span><span class="bval" style="color:#64D68A">'+S.target+' mg/dL</span></div>';
+  h+='<div style="height:1px;background:#2A2A36;margin:6px 0"></div>';
+  h+='<div class="brow"><span class="blbl">Correzione calcolata</span><span class="bval" style="color:#FBBC2C">'+corr.toFixed(2)+' U</span></div>';
+  if(iob>0){
+    h+='<div class="brow"><span class="blbl">IOB attivo</span><span class="bval" style="color:#6B94F0">-'+iob.toFixed(2)+' U</span></div>';
+    h+='<div class="brow"><span class="blbl">Correzione netta</span><span class="bval" style="color:#64D68A">'+net.toFixed(2)+' U</span></div>';
+  }
+  h+='</div>';
+  h+='<div style="font-size:11px;color:#6B6B7A;text-align:center">Formula: ('+gly+' - '+S.target+') / '+S.isf+' = '+corr.toFixed(2)+' U</div>';
+  $('corr-detail').innerHTML=h;
+  A.openMdl('m-corr');
 };
 
 /* ---------- SWIPE TO COMPLETE ---------- */
@@ -485,8 +560,11 @@ function schedRem(name,units){
   var delay=(S.reminderDelay||150)*60000;
   if(typeof Notification!=='undefined'&&Notification.permission==='granted'){
     setTimeout(function(){
-      try{new Notification('Bolo 2 — '+name,{body:units.toFixed(1)+' U (FPU)'})}
-      catch(e){inAppRem(name,units)}
+      try{
+        new Notification('Bolo 2 — '+name,{body:units.toFixed(1)+' U (FPU)',tag:'bolo2-'+Date.now()});
+      }catch(e){}
+      /* Always also trigger in-app alert */
+      inAppRem(name,units);
     },delay);
   }else if(typeof Notification!=='undefined'&&Notification.permission==='default'){
     try{
@@ -499,7 +577,37 @@ function schedRem(name,units){
     setTimeout(function(){inAppRem(name,units)},delay);
   }
 }
-function inAppRem(n,u){A.notify('💉 Bolo 2 '+n+': '+u.toFixed(1)+' U')}
+
+function inAppRem(n,u){
+  /* Mod 5: Enhanced in-app alert with vibration + sound + modal */
+  if(S.b2alert!==false){
+    /* Vibration */
+    if(navigator.vibrate){
+      navigator.vibrate([200,100,200,100,300]);
+    }
+    /* Audio beep */
+    try{
+      var actx=new (window.AudioContext||window.webkitAudioContext)();
+      var osc=actx.createOscillator();
+      var gain=actx.createGain();
+      osc.connect(gain);gain.connect(actx.destination);
+      osc.frequency.value=880;osc.type='sine';
+      gain.gain.value=0.3;
+      osc.start();
+      setTimeout(function(){osc.stop();actx.close()},500);
+    }catch(e){}
+  }
+  /* Show persistent modal */
+  var h='<div style="text-align:center;margin-bottom:12px">';
+  h+='<div style="font-size:48px;margin-bottom:8px">💉</div>';
+  h+='<div style="font-size:20px;font-weight:800;color:#A78BFA">Bolo 2 — FPU</div>';
+  h+='<div style="font-size:15px;color:#E8E8ED;margin-top:6px">'+n+'</div></div>';
+  h+='<div style="background:#24242E;border-radius:12px;padding:16px;text-align:center;margin-bottom:12px">';
+  h+='<div style="font-size:36px;font-weight:800;color:#A78BFA">'+u.toFixed(1)+' U</div>';
+  h+='<div style="font-size:13px;color:#9898A6;margin-top:4px">Somministrare ora</div></div>';
+  $('b2-alert-detail').innerHTML=h;
+  A.openMdl('m-b2alert');
+}
 
 /* ---------- EDIT MEAL ---------- */
 A.editOggi=function(i){
@@ -527,16 +635,46 @@ A.editPiano=function(i){
 function rEditFoods(){
   var h='';
   for(var i=0;i<tmpFoods.length;i++){
+    var fd=findF(tmpFoods[i].n);
+    var ov=tmpFoods[i].ov;
+    var k=ov&&typeof ov.k==='number'?ov.k:(fd?fd.k:0);
+    var ca=ov&&typeof ov.ca==='number'?ov.ca:(fd?fd.ca:0);
+    var p=ov&&typeof ov.p==='number'?ov.p:(fd?fd.p:0);
+    var f=ov&&typeof ov.f==='number'?ov.f:(fd?fd.f:0);
     h+='<div class="fe-row"><span class="fn">'+tmpFoods[i].n+'</span>';
     h+='<input type="number" class="inp fg" value="'+tmpFoods[i].g+'" inputmode="numeric" style="width:65px;padding:6px 8px;font-size:14px" oninput="A.updTmpG('+i+',this.value)">';
     h+='<span style="font-size:12px;color:#6B6B7A">g</span>';
+    h+='<button class="btn btn-sm btn-o" style="padding:4px 8px;font-size:11px;margin-left:4px" onclick="A.tglNutr('+i+')">📝</button>';
     h+='<button class="fx" onclick="A.rmTmpF('+i+')">✕</button></div>';
+    h+='<div class="fe-nutr" id="fe-nutr-'+i+'" style="display:none;padding:4px 0 8px;border-bottom:1px solid #2A2A36">';
+    h+='<div style="font-size:11px;color:#9898A6;margin-bottom:4px">Valori per 100g (modifica per questo pasto):</div>';
+    h+='<div style="display:flex;gap:4px;flex-wrap:wrap">';
+    h+='<div style="flex:1;min-width:60px"><label class="inp-lbl">Kcal</label><input type="number" class="inp" style="padding:5px 6px;font-size:12px" value="'+k+'" inputmode="decimal" oninput="A.updTmpNutr('+i+',\'k\',this.value)"></div>';
+    h+='<div style="flex:1;min-width:60px"><label class="inp-lbl">Carb</label><input type="number" class="inp" style="padding:5px 6px;font-size:12px" value="'+ca+'" inputmode="decimal" oninput="A.updTmpNutr('+i+',\'ca\',this.value)"></div>';
+    h+='<div style="flex:1;min-width:60px"><label class="inp-lbl">Prot</label><input type="number" class="inp" style="padding:5px 6px;font-size:12px" value="'+p+'" inputmode="decimal" oninput="A.updTmpNutr('+i+',\'p\',this.value)"></div>';
+    h+='<div style="flex:1;min-width:60px"><label class="inp-lbl">Grassi</label><input type="number" class="inp" style="padding:5px 6px;font-size:12px" value="'+f+'" inputmode="decimal" oninput="A.updTmpNutr('+i+',\'f\',this.value)"></div>';
+    h+='</div></div>';
   }
   if(!tmpFoods.length) h='<div style="text-align:center;color:#6B6B7A;padding:12px">Nessun alimento</div>';
   $('me-foods').innerHTML=h;
 }
 A.updTmpG=function(i,v){var g=parseInt(v);if(!isNaN(g)&&g>0)tmpFoods[i].g=g};
 A.rmTmpF=function(i){tmpFoods.splice(i,1);rEditFoods()};
+A.tglNutr=function(i){
+  var el=$('fe-nutr-'+i);
+  if(!el)return;
+  el.style.display=el.style.display==='none'?'block':'none';
+};
+A.updTmpNutr=function(i,key,v){
+  var val=parseFloat(v);
+  if(isNaN(val))return;
+  if(!tmpFoods[i].ov){
+    var fd=findF(tmpFoods[i].n);
+    if(fd){tmpFoods[i].ov={k:fd.k,ca:fd.ca,p:fd.p,f:fd.f,fi:fd.fi}}
+    else{tmpFoods[i].ov={k:0,ca:0,p:0,f:0,fi:0}}
+  }
+  tmpFoods[i].ov[key]=val;
+};
 
 A.saveEdit=function(){
   var name=$('me-name').value.trim();
@@ -547,13 +685,64 @@ A.saveEdit=function(){
     var ds=todayStr();
     if(!D[ds])D[ds]={};
     if(!D[ds].meals)D[ds].meals=deepCopy(todayMeals());
+    var wasComplete=D[ds].consumed&&D[ds].consumed[editIdx];
     D[ds].meals[editIdx]=ml;save();A.rOggi();A.rHome();
+    /* Mod 4: show delta bolus if meal was completed */
+    if(wasComplete&&extraOldMacros){
+      var newM=calcM(ml.foods);
+      var deltaCarb=newM.carb-extraOldMacros.carb;
+      var deltaFP=(newM.fat+newM.prot)-(extraOldMacros.fat+extraOldMacros.prot);
+      if(deltaCarb>0||deltaFP>0){
+        var gly=lastGly();
+        var deltaB1=deltaCarb>0?r2(deltaCarb/S.icr):0;
+        var deltaB2=deltaFP>0?r2(deltaFP/S.gpr):0;
+        if(deltaB1>0){
+          if(!D[ds].boluses)D[ds].boluses=[];
+          D[ds].boluses.push({time:Date.now(),units:deltaB1,type:'b1-extra'});
+          save();
+        }
+        A.showDeltaBolo(ml.name,deltaCarb,deltaFP,deltaB1,deltaB2);
+        if(S.reminder&&deltaB2>0) schedRem(ml.name+' (extra)',deltaB2);
+      }
+      extraMealIdx=-1;extraOldMacros=null;
+    }
+  }else if(editCtx==='agenda'){
+    /* Mod 2: save meal edit for agenda day */
+    if(!D[agendaEditDay])D[agendaEditDay]={};
+    if(!D[agendaEditDay].meals){
+      var adt=getDT(agendaEditDay);
+      D[agendaEditDay].meals=deepCopy(planM(adt));
+    }
+    D[agendaEditDay].meals[editIdx]=ml;save();
+    A.selDay(agendaEditDay);
   }else{
     var d=actD();
     if(pianoDT==='gym')d.gym[editIdx]=ml;else d.rest[editIdx]=ml;
     lsS('dp_diets',diets);A.rPiano();
   }
   A.closeMdl('m-edit');A.notify('Pasto salvato ✓');
+};
+
+/* ---------- DELTA BOLO MODAL ---------- */
+A.showDeltaBolo=function(name,dCarb,dFP,dB1,dB2){
+  var h='<div style="text-align:center;margin-bottom:12px">';
+  h+='<div style="font-size:42px;margin-bottom:4px">🍽️</div>';
+  h+='<div style="font-size:18px;font-weight:700;color:#A78BFA">Bolo Aggiuntivo</div>';
+  h+='<div style="font-size:13px;color:#9898A6">'+name+'</div></div>';
+  h+='<div style="background:#24242E;border-radius:12px;padding:14px;margin-bottom:10px">';
+  if(dCarb>0){
+    h+='<div class="brow"><span class="blbl">Carb extra</span><span style="color:#FBBC2C;font-weight:600">+'+r1(dCarb)+'g</span></div>';
+    h+='<div class="brow"><span class="blbl">Bolo 1 aggiuntivo</span><span class="bval" style="color:#64D68A">'+dB1.toFixed(2)+' U</span></div>';
+  }
+  if(dFP>0){
+    h+='<div style="height:1px;background:#2A2A36;margin:6px 0"></div>';
+    h+='<div class="brow"><span class="blbl">G+P extra</span><span style="color:#A78BFA;font-weight:600">+'+r1(dFP)+'g</span></div>';
+    h+='<div class="brow"><span class="blbl">Bolo 2 aggiuntivo</span><span class="bval" style="color:#A78BFA">'+dB2.toFixed(2)+' U</span></div>';
+    h+='<div style="font-size:11px;color:#6B6B7A;margin-top:4px">Timer Bolo 2 avviato — '+(S.reminderDelay||150)+' min</div>';
+  }
+  h+='</div>';
+  $('delta-detail').innerHTML=h;
+  A.openMdl('m-delta');
 };
 
 /* ---------- ADD FOOD MODAL ---------- */
@@ -755,6 +944,7 @@ A.calNav=function(dir){
 };
 
 A.selDay=function(ds){
+  agendaEditDay=ds;
   var det=$('ag-detail');det.style.display='block';
   var dd=D[ds]||{};var dt=dd.dayType||'gym';
   var h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
@@ -770,7 +960,57 @@ A.selDay=function(ds){
       h+='<div style="font-size:13px;color:#9898A6">'+pad(t.getHours())+':'+pad(t.getMinutes())+' — <strong>'+dd.glycemia[g].value+'</strong> mg/dL</div>';
     }
   }
+  /* Mod 2: Show meals for this day (plan or custom) */
+  var meals=dd.meals?dd.meals:deepCopy(planM(dt));
+  h+='<div class="card-hd" style="margin-top:12px">Pasti</div>';
+  for(var mi=0;mi<meals.length;mi++){
+    var ml=meals[mi];var mc=calcM(ml.foods);
+    h+='<div style="background:#24242E;border-radius:10px;padding:10px 12px;margin-bottom:6px">';
+    h+='<div style="display:flex;align-items:center;justify-content:space-between">';
+    h+='<div><div style="font-size:14px;font-weight:600">'+ml.name+'</div>';
+    h+='<div style="font-size:12px;color:#9898A6">'+ml.time+'</div></div>';
+    h+='<button class="btn btn-sm btn-o" onclick="A.editAgMeal('+mi+')">✏️</button></div>';
+    h+='<div style="font-size:11px;color:#6B6B7A;margin-top:4px">'+r1(mc.kcal)+' kcal · C'+r1(mc.carb)+' P'+r1(mc.prot)+' G'+r1(mc.fat)+'</div>';
+    h+='</div>';
+  }
+  /* Totals */
+  var tot={kcal:0,carb:0,prot:0,fat:0};
+  for(var ti=0;ti<meals.length;ti++){
+    var tm=calcM(meals[ti].foods);
+    tot.kcal+=tm.kcal;tot.carb+=tm.carb;tot.prot+=tm.prot;tot.fat+=tm.fat;
+  }
+  h+='<div style="background:#1C1C24;border-radius:10px;padding:10px;margin-top:6px;display:flex;justify-content:space-around;text-align:center;font-size:12px">';
+  h+='<div><div style="font-weight:700;color:#64D68A">'+r1(tot.kcal)+'</div>kcal</div>';
+  h+='<div><div style="font-weight:700;color:#FBBC2C">'+r1(tot.carb)+'g</div>carb</div>';
+  h+='<div><div style="font-weight:700;color:#6B94F0">'+r1(tot.prot)+'g</div>prot</div>';
+  h+='<div><div style="font-weight:700;color:#A78BFA">'+r1(tot.fat)+'g</div>grassi</div></div>';
+  if(!dd.meals){
+    h+='<button class="btn btn-sm btn-g btn-bk" style="margin-top:8px" onclick="A.initAgMeals(\''+ds+'\')">📝 Personalizza pasti</button>';
+  }
   det.innerHTML=h;
+};
+
+A.initAgMeals=function(ds){
+  if(!D[ds])D[ds]={};
+  var dt=getDT(ds);
+  D[ds].meals=deepCopy(planM(dt));
+  save();A.selDay(ds);A.notify('Pasti copiati da piano ✓');
+};
+
+A.editAgMeal=function(i){
+  var ds=agendaEditDay;
+  if(!D[ds])D[ds]={};
+  if(!D[ds].meals){
+    var adt=getDT(ds);
+    D[ds].meals=deepCopy(planM(adt));
+    save();
+  }
+  editIdx=i;editCtx='agenda';
+  var ml=D[ds].meals[i];if(!ml)return;
+  $('me-title').textContent='Modifica — '+ml.name;
+  $('me-name').value=ml.name;$('me-time').value=ml.time;
+  tmpFoods=deepCopy(ml.foods);
+  rEditFoods();A.openMdl('m-edit');
 };
 
 A.setAgDT=function(ds,t){setDT(ds,t);A.rAgenda();A.selDay(ds);
