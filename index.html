@@ -178,7 +178,7 @@ window.onerror=function(m,s,l,c,e){
   <div class="card">
     <div class="card-hd">Dati</div>
     <button class="btn btn-sm btn-o btn-bk" onclick="A.resetAll()">Reset Completo</button>
-    <div style="font-size:11px;color:#6B6B7A;text-align:center;margin-top:8px">Dieta Ale v4.2</div>
+    <div style="font-size:11px;color:#6B6B7A;text-align:center;margin-top:8px">Dieta Ale v4.3</div>
   </div>
 </div>
 
@@ -223,6 +223,7 @@ window.onerror=function(m,s,l,c,e){
 <div class="mdl">
   <div class="mdl-hd"><span id="fg-title">Quantità</span><button class="mdl-x" onclick="A.closeMdl('m-grams')">✕</button></div>
   <div id="fg-info" style="font-size:13px;color:#9898A6;margin-bottom:12px"></div>
+  <div id="fg-portions"></div>
   <div class="r8"><div><label class="inp-lbl">Grammi</label><input type="number" class="inp" id="fg-g" inputmode="numeric" value="100" oninput="A.prevGrams()"></div></div>
   <div id="fg-prev" style="font-size:13px;color:#9898A6;margin-bottom:12px"></div>
   <button class="btn btn-g btn-bk" onclick="A.confirmFood()">Aggiungi</button>
