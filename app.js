@@ -90,18 +90,24 @@ function fuzzy(q,t){
   for(var ti=0;ti<t.length&&qi<q.length;ti++){if(t[ti]===q[qi])qi++}
   return qi===q.length;
 }
+function safeNum(v){var n=parseFloat(v);return isNaN(n)?0:n}
+function dbCA(o){return o.ca!==undefined?safeNum(o.ca):(typeof o.c==='number'?safeNum(o.c):0)}
+function dbK(o){return o.k!==undefined?safeNum(o.k):0}
+function dbF(o){return o.f!==undefined?safeNum(o.f):(o.fat!==undefined?safeNum(o.fat):0)}
+function dbP(o){return o.p!==undefined?safeNum(o.p):(o.prot!==undefined?safeNum(o.prot):0)}
+function dbFi(o){return o.fi!==undefined?safeNum(o.fi):0}
 function calcM(foods){
   var m={kcal:0,carb:0,prot:0,fat:0,fiber:0};
   for(var i=0;i<foods.length;i++){
     var fd=findF(foods[i].n);
     if(!fd)continue;
-    var r=foods[i].g/100;
+    var r=safeNum(foods[i].g)/100;
     var ov=foods[i].ov;
-    var k=ov&&typeof ov.k==='number'?ov.k:fd.k;
-    var ca=ov&&typeof ov.ca==='number'?ov.ca:fd.ca;
-    var p=ov&&typeof ov.p==='number'?ov.p:fd.p;
-    var f=ov&&typeof ov.f==='number'?ov.f:fd.f;
-    var fi=ov&&typeof ov.fi==='number'?ov.fi:fd.fi;
+    var k=ov&&ov.k!==undefined?safeNum(ov.k):dbK(fd);
+    var ca=ov&&ov.ca!==undefined?safeNum(ov.ca):dbCA(fd);
+    var p=ov&&ov.p!==undefined?safeNum(ov.p):dbP(fd);
+    var f=ov&&ov.f!==undefined?safeNum(ov.f):dbF(fd);
+    var fi=ov&&ov.fi!==undefined?safeNum(ov.fi):dbFi(fd);
     m.kcal+=k*r;m.carb+=ca*r;m.prot+=p*r;m.fat+=f*r;m.fiber+=fi*r;
   }
   return{kcal:r1(m.kcal),carb:r1(m.carb),prot:r1(m.prot),fat:r1(m.fat),fiber:r1(m.fiber)};
@@ -692,10 +698,10 @@ function rEditFoods(){
   for(var i=0;i<tmpFoods.length;i++){
     var fd=findF(tmpFoods[i].n);
     var ov=tmpFoods[i].ov;
-    var k=ov&&typeof ov.k==='number'?ov.k:(fd?fd.k:0);
-    var ca=ov&&typeof ov.ca==='number'?ov.ca:(fd?fd.ca:0);
-    var p=ov&&typeof ov.p==='number'?ov.p:(fd?fd.p:0);
-    var f=ov&&typeof ov.f==='number'?ov.f:(fd?fd.f:0);
+    var k=ov&&ov.k!==undefined?safeNum(ov.k):(fd?dbK(fd):0);
+    var ca=ov&&ov.ca!==undefined?safeNum(ov.ca):(fd?dbCA(fd):0);
+    var p=ov&&ov.p!==undefined?safeNum(ov.p):(fd?dbP(fd):0);
+    var f=ov&&ov.f!==undefined?safeNum(ov.f):(fd?dbF(fd):0);
     h+='<div class="fe-row"><span class="fn">'+tmpFoods[i].n+'</span>';
     h+='<input type="number" class="inp fg" value="'+tmpFoods[i].g+'" inputmode="numeric" style="width:65px;padding:6px 8px;font-size:14px" oninput="A.updTmpG('+i+',this.value)">';
     h+='<span style="font-size:12px;color:#6B6B7A">g</span>';
@@ -725,7 +731,7 @@ A.updTmpNutr=function(i,key,v){
   if(isNaN(val))return;
   if(!tmpFoods[i].ov){
     var fd=findF(tmpFoods[i].n);
-    if(fd){tmpFoods[i].ov={k:fd.k,ca:fd.ca,p:fd.p,f:fd.f,fi:fd.fi}}
+    if(fd){tmpFoods[i].ov={k:dbK(fd),ca:dbCA(fd),p:dbP(fd),f:dbF(fd),fi:dbFi(fd)}}
     else{tmpFoods[i].ov={k:0,ca:0,p:0,f:0,fi:0}}
   }
   tmpFoods[i].ov[key]=val;
@@ -975,7 +981,7 @@ A.saveCF=function(){
   var name=$('cf-name').value.trim();
   if(!name){A.notify('Inserisci un nome');return}
   cFoods.push({n:name,c:$('cf-cat').value.trim()||'Personalizzato',
-    k:parseInt($('cf-kcal').value)||0,ca:parseFloat($('cf-carb').value)||0,
+    k:parseFloat($('cf-kcal').value)||0,ca:parseFloat($('cf-carb').value)||0,
     p:parseFloat($('cf-prot').value)||0,f:parseFloat($('cf-fat').value)||0,
     fi:parseFloat($('cf-fib').value)||0});
   lsS('dp_cfood',cFoods);rCFList();$('cf-name').value='';A.notify('Aggiunto ✓');
