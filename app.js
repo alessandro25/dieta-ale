@@ -419,13 +419,6 @@ A.togMeal=function(i,done){
   if(!D[ds].consumed)D[ds].consumed={};
   if(done){
     D[ds].consumed[i]=true;
-    var meals=todayMeals();
-    if(meals[i]){
-      var gly=lastGly();var bo=calcBolus(meals[i].foods,gly);
-      if(!D[ds].boluses)D[ds].boluses=[];
-      D[ds].boluses.push({time:Date.now(),units:bo.b1,type:'b1'});
-      if(S.reminder&&bo.b2>0) schedRem(meals[i].name,bo.b2);
-    }
   }else{delete D[ds].consumed[i]}
   save();A.rOggi();A.rHome();
 };
@@ -552,6 +545,17 @@ A.showBolo=function(i){
 
 A.confirmBolo=function(){
   var i=parseInt($('m-bolo').getAttribute('data-mi'));
+  var ds=todayStr();
+  if(!D[ds])D[ds]={};
+  /* Register bolus only on explicit confirmation */
+  var meals=todayMeals();
+  if(meals[i]){
+    var gly=lastGly();var bo=calcBolus(meals[i].foods,gly);
+    if(!D[ds].boluses)D[ds].boluses=[];
+    D[ds].boluses.push({time:Date.now(),units:bo.b1,type:'b1'});
+    if(S.reminder&&bo.b2>0) schedRem(meals[i].name,bo.b2);
+    save();
+  }
   A.togMeal(i,true);A.closeMdl('m-bolo');A.notify('Bolo confermato ✓');
 };
 
