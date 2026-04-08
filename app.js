@@ -1,9 +1,10 @@
 /* =============================================
-   DIETA ALE v4.2 — APP LOGIC
+   DIETA ALE v4.3 — APP LOGIC
    Safari iOS compatible: NO ?. ?? ||= ??=
    Depends on: database.js (FOOD_DB, DEF_S, DEF_GYM, DEF_REST)
    v4.2: editable nutrients, agenda planning, corr alert,
          add food post-complete, enhanced bolo2 alert
+   v4.3: portions, delete meal+insulin confirm, UX
    ============================================= */
 
 /* ---------- HELPERS ---------- */
@@ -340,7 +341,10 @@ A.rHome=function(){
   if(nextMeal){
     var nm=calcM(nextMeal.foods);
     $('h-next').innerHTML='<div style="font-size:17px;font-weight:700;margin-bottom:4px">'+nextMeal.name+' — '+nextMeal.time+'</div>'+
-      '<div style="font-size:13px;color:#9898A6">'+r1(nm.kcal)+' kcal · C '+r1(nm.carb)+'g · P '+r1(nm.prot)+'g · G '+r1(nm.fat)+'g</div>';
+      '<div style="font-size:13px;color:#9898A6">'+r1(nm.kcal)+' kcal · C '+r1(nm.carb)+'g · P '+r1(nm.prot)+'g · G '+r1(nm.fat)+'g</div>'+
+      '<div style="display:flex;gap:8px;margin-top:10px">'+
+      '<button class="btn btn-sm btn-bl" onclick="A.showBolo('+nextIdx+')">💉 Calcola Bolo</button>'+
+      '<button class="btn btn-sm btn-g" onclick="A.go(\'oggi\')">📋 Vai a Oggi</button></div>';
 
     var gly=lastGly();
     var bo=calcBolus(nextMeal.foods,gly);
@@ -398,6 +402,7 @@ A.rOggi=function(){
     h+='<button class="btn btn-sm btn-o" onclick="A.editOggi('+i+')">✏️ Modifica</button>';
     if(!dn) h+='<button class="btn btn-sm btn-bl" onclick="A.showBolo('+i+')">💉 Bolo</button>';
     if(dn) h+='<button class="btn btn-sm btn-v" onclick="A.addExtraFood('+i+')">+ Aggiungi Cibo</button>';
+    h+='<button class="btn btn-sm" style="background:rgba(239,107,107,.15);color:#EF6B6B" onclick="A.delTodayMeal('+i+')">🗑️</button>';
     h+='</div></div>';
   }
   $('o-meals').innerHTML=h;
@@ -420,6 +425,52 @@ A.togMeal=function(i,done){
   if(done){
     D[ds].consumed[i]=true;
   }else{delete D[ds].consumed[i]}
+  save();A.rOggi();A.rHome();
+};
+
+/* ---------- DELETE TODAY MEAL ---------- */
+A.delTodayMeal=function(i){
+  var ds=todayStr();
+  if(!D[ds])D[ds]={};
+  if(!D[ds].meals)D[ds].meals=deepCopy(todayMeals());
+  var ml=D[ds].meals[i];
+  if(!ml)return;
+  var con=D[ds].consumed&&D[ds].consumed[i];
+
+  if(!confirm('Eliminare "'+ml.name+'"?'))return;
+
+  /* Check for associated bolus if meal was completed */
+  if(con&&D[ds].boluses&&D[ds].boluses.length>0){
+    var bo=calcBolus(ml.foods,null);
+    if(bo.b1>0){
+      if(confirm('Vuoi rimuovere anche il bolo ('+bo.b1.toFixed(1)+' U) dall\'insulina attiva?')){
+        /* Remove the bolus closest to this meal's insulin amount */
+        var found=-1;
+        for(var b=D[ds].boluses.length-1;b>=0;b--){
+          if(Math.abs(D[ds].boluses[b].units-bo.b1)<0.05){found=b;break}
+        }
+        if(found>=0) D[ds].boluses.splice(found,1);
+        A.notify('Pasto e bolo eliminati ✓');
+      }else{
+        A.notify('Pasto eliminato, bolo mantenuto');
+      }
+    }
+  }else{
+    A.notify('Pasto eliminato ✓');
+  }
+
+  /* Remove meal and shift consumed indexes */
+  D[ds].meals.splice(i,1);
+  if(D[ds].consumed){
+    var newCon={};
+    var ks=Object.keys(D[ds].consumed);
+    for(var c=0;c<ks.length;c++){
+      var ci=parseInt(ks[c]);
+      if(ci<i) newCon[ci]=true;
+      if(ci>i) newCon[ci-1]=true;
+    }
+    D[ds].consumed=newCon;
+  }
   save();A.rOggi();A.rHome();
 };
 
@@ -795,8 +846,28 @@ A.pickFood=function(name){
   selFood=findF(name);if(!selFood)return;
   $('fg-title').textContent=selFood.n;
   $('fg-info').textContent='Per 100g: '+selFood.k+' kcal · C'+selFood.ca+' P'+selFood.p+' G'+selFood.f;
+  /* Portions quick-select */
+  var ph='';
+  if(selFood.po&&selFood.po.length>0){
+    ph+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">';
+    ph+='<div class="chip on" onclick="A.selPortion(this,100)">100g</div>';
+    for(var i=0;i<selFood.po.length;i++){
+      var po=selFood.po[i];
+      ph+='<div class="chip" onclick="A.selPortion(this,'+po.g+')">'+po.l+' ('+po.g+'g)</div>';
+    }
+    ph+='</div>';
+  }
+  $('fg-portions').innerHTML=ph;
   $('fg-g').value=100;A.prevGrams();
   A.closeMdl('m-addfood');A.openMdl('m-grams');
+};
+
+A.selPortion=function(el,g){
+  $('fg-g').value=Math.round(g);
+  A.prevGrams();
+  var ch=qsa('#fg-portions .chip');
+  for(var i=0;i<ch.length;i++)ch[i].classList.remove('on');
+  el.classList.add('on');
 };
 
 A.prevGrams=function(){
@@ -1080,7 +1151,8 @@ A.addMealPlan=function(){
 };
 A.rmPlanMeal=function(i){
   var d=actD();var ml=pianoDT==='gym'?d.gym:d.rest;
-  ml.splice(i,1);lsS('dp_diets',diets);A.rPiano();
+  if(!confirm('Eliminare "'+ml[i].name+'"?'))return;
+  ml.splice(i,1);lsS('dp_diets',diets);A.rPiano();A.notify('Pasto eliminato ✓');
 };
 
 /* ---------- IMPORT / EXPORT ---------- */
