@@ -178,7 +178,7 @@ window.onerror=function(m,s,l,c,e){
   <div class="card">
     <div class="card-hd">Dati</div>
     <button class="btn btn-sm btn-o btn-bk" onclick="A.resetAll()">Reset Completo</button>
-    <div style="font-size:11px;color:#6B6B7A;text-align:center;margin-top:8px">Dieta Ale v4.3</div>
+    <div style="font-size:11px;color:#6B6B7A;text-align:center;margin-top:8px">Dieta Ale v4.4</div>
   </div>
 </div>
 
@@ -210,6 +210,7 @@ window.onerror=function(m,s,l,c,e){
 <div class="mbg" id="m-addfood">
 <div class="mdl">
   <div class="mdl-hd"><span>Aggiungi Alimento</span><button class="mdl-x" onclick="A.closeMdl('m-addfood')">✕</button></div>
+  <div id="f-recent"></div>
   <div class="chips" id="f-cats"></div>
   <div class="srch"><span class="si">🔍</span><input type="text" class="inp" id="f-srch" placeholder="Cerca alimento..." oninput="A.filterF()"></div>
   <div class="sres" id="f-res"></div>
@@ -269,7 +270,8 @@ window.onerror=function(m,s,l,c,e){
 <div class="mdl">
   <div class="mdl-hd"><span>Dettaglio Bolo</span><button class="mdl-x" onclick="A.closeMdl('m-bolo')">✕</button></div>
   <div id="bo-detail"></div>
-  <button class="btn btn-g btn-bk" style="margin-top:12px" onclick="A.confirmBolo()">Conferma Bolo</button>
+  <div id="bo-split-edit"></div>
+  <div id="bo-actions"><button class="btn btn-g btn-bk" style="margin-top:12px" onclick="A.confirmBolo()">Conferma Bolo</button></div>
 </div></div>
 
 <!-- REORDER -->
@@ -301,7 +303,8 @@ window.onerror=function(m,s,l,c,e){
 <div class="mdl">
   <div class="mdl-hd"><span>Promemoria Bolo 2</span><button class="mdl-x" onclick="A.closeMdl('m-b2alert')">✕</button></div>
   <div id="b2-alert-detail"></div>
-  <button class="btn btn-g btn-bk" style="margin-top:12px" onclick="A.closeMdl('m-b2alert')">Fatto ✓</button>
+  <button class="btn btn-g btn-bk" style="margin-top:12px" onclick="A.confirmB2()">Conferma Bolo 2 💉</button>
+  <button class="btn btn-o btn-bk" style="margin-top:6px" onclick="A.closeMdl('m-b2alert')">Ignora</button>
 </div></div>
 
 <!-- NOTIFICATION BANNER -->
