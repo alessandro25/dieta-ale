@@ -1,4 +1,4 @@
-var CACHE_NAME = 'dieta-ale-v4';
+var CACHE_NAME = 'dieta-ale-v44';
 var ASSETS = [
   './',
   './index.html',
