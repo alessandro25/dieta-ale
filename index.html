@@ -256,7 +256,12 @@ window.onerror=function(m,s,l,c,e){
 <div class="mbg" id="m-barcode">
 <div class="mdl">
   <div class="mdl-hd"><span>Scansiona Barcode</span><button class="mdl-x" onclick="A.stopScan();A.closeMdl('m-barcode')">✕</button></div>
-  <video class="bvid" id="bc-vid" autoplay playsinline></video>
+  <video class="bvid" id="bc-vid" autoplay playsinline muted></video>
+  <div id="bc-status" style="font-size:12px;color:#9898A6;text-align:center;padding:6px 0"></div>
+  <div style="display:flex;gap:8px;margin-top:6px">
+    <button class="btn btn-sm btn-bl" style="flex:1" onclick="A.snapBarcode()">📸 Scatta Foto</button>
+    <input type="file" accept="image/*" capture="environment" id="bc-file" style="display:none" onchange="A.onBCFile(this)">
+  </div>
   <div style="margin-top:10px">
     <label class="inp-lbl">Oppure inserisci manualmente:</label>
     <div class="r8"><div><input type="text" class="inp" id="bc-man" placeholder="Codice EAN" inputmode="numeric"></div>
