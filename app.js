@@ -410,6 +410,11 @@ A.rOggi=function(){
     h+='<button class="btn btn-sm btn-o" onclick="A.editOggi('+i+')">✏️ Modifica</button>';
     if(!dn) h+='<button class="btn btn-sm btn-bl" onclick="A.showBolo('+i+')">💉 Bolo</button>';
     if(dn) h+='<button class="btn btn-sm btn-bl" onclick="A.viewBolo('+i+')">👁 Bolo</button>';
+    /* B1b pending button */
+    if(dn&&dd.pendingB1b&&dd.pendingB1b[''+i]){
+      var pb1b=dd.pendingB1b[''+i];
+      h+='<button class="btn btn-sm" style="background:rgba(251,188,44,.2);color:#FBBC2C;font-weight:700" onclick="A.confirmB1b('+i+')">💉 B1b Fine Pasto: '+pb1b.units.toFixed(1)+' U</button>';
+    }
     if(dn) h+='<button class="btn btn-sm btn-v" onclick="A.addExtraFood('+i+')">+ Aggiungi Cibo</button>';
     h+='<button class="btn btn-sm" style="background:rgba(239,107,107,.15);color:#EF6B6B" onclick="A.delTodayMeal('+i+')">🗑️</button>';
     h+='</div></div>';
@@ -603,10 +608,10 @@ function renderBoloContent(ml,gly,splitA,splitB){
   h+='<div style="height:1px;background:#2A2A36;margin:8px 0"></div>';
   h+='<div class="brow"><span class="blbl">Bolo 2 FPU — dopo '+(S.reminderDelay||150)+' min</span><span class="bval" style="color:#A78BFA">'+bo.b2.toFixed(2)+' U</span></div>';
   h+='<div style="font-size:11px;color:#6B6B7A">FPU: ('+bo.m.fat+'g G + '+bo.m.prot+'g P) / '+S.gpr+' = '+bo.b2.toFixed(2)+' U</div>';
-  h+='<div style="font-size:11px;color:#FBBC2C;margin-top:6px">⚠️ Il Bolo 2 FPU NON viene aggiunto all\'IOB fino a conferma separata</div>';
+  h+='<div style="font-size:11px;color:#FBBC2C;margin-top:6px">⚠️ B1b (fine pasto) e B2 (FPU) entrano nell\'IOB solo dopo conferma separata</div>';
   h+='</div>';
   var iob=calcIOB();
-  if(iob>0) h+='<div style="background:rgba(107,148,240,.1);padding:10px;border-radius:8px;font-size:13px;margin-top:8px">⚠️ IOB attivo: <strong>'+iob.toFixed(1)+' U</strong> (solo B1 confermati)</div>';
+  if(iob>0) h+='<div style="background:rgba(107,148,240,.1);padding:10px;border-radius:8px;font-size:13px;margin-top:8px">⚠️ IOB attivo: <strong>'+iob.toFixed(1)+' U</strong> (solo frazioni confermate)</div>';
   return h;
 }
 
@@ -640,7 +645,13 @@ A.viewBolo=function(i){
   var splitA=S.splitStart||60;
   var splitB=S.splitEnd||40;
   $('bo-detail').innerHTML=renderBoloContent(ml,gly,splitA,splitB);
-  $('bo-split-edit').innerHTML='';
+  /* Show pending status */
+  var ds=todayStr();var dd=D[ds]||{};
+  var statusH='';
+  if(dd.pendingB1b&&dd.pendingB1b[''+i]){
+    statusH+='<div style="background:rgba(251,188,44,.1);padding:10px;border-radius:8px;font-size:13px;margin-top:8px;color:#FBBC2C">⏳ B1b in attesa: <strong>'+dd.pendingB1b[''+i].units.toFixed(1)+' U</strong> (fine pasto)</div>';
+  }
+  $('bo-split-edit').innerHTML=statusH;
   /* No confirm button, just close */
   $('bo-actions').innerHTML='<button class="btn btn-o btn-bk" style="margin-top:12px" onclick="A.closeMdl(\'m-bolo\')">Chiudi</button>';
   $('m-bolo').setAttribute('data-mi',''+i);
@@ -673,14 +684,37 @@ A.confirmBolo=function(){
     if(S.splitBolus){
       S.splitStart=_boloTmpSplitA;
       S.splitEnd=_boloTmpSplitB;
+      /* Recalc with current split */
+      var b1a=r2(bo.b1*(_boloTmpSplitA/100));
+      var b1b=r2(bo.b1*(_boloTmpSplitB/100));
+      /* Register ONLY B1a (inizio pasto) in IOB */
+      D[ds].boluses.push({time:Date.now(),units:b1a,type:'b1a'});
+      /* Store pending B1b for later confirmation */
+      if(!D[ds].pendingB1b)D[ds].pendingB1b={};
+      D[ds].pendingB1b[''+i]={units:b1b,pct:_boloTmpSplitB};
+      A.notify('B1a '+b1a.toFixed(1)+'U → IOB · B1b '+b1b.toFixed(1)+'U in attesa');
+    }else{
+      /* No split: register entire B1 */
+      D[ds].boluses.push({time:Date.now(),units:bo.b1,type:'b1'});
+      A.notify('Bolo B1 confermato ✓');
     }
-    /* Register ONLY B1 in IOB — B2 FPU is NOT included */
-    D[ds].boluses.push({time:Date.now(),units:bo.b1,type:'b1'});
-    /* Schedule B2 reminder (will require separate confirmation) */
+    /* Schedule B2 reminder (will require separate confirmation via confirmB2) */
     if(S.reminder&&bo.b2>0) schedRem(meals[i].name,bo.b2);
     save();
   }
-  A.togMeal(i,true);A.closeMdl('m-bolo');A.notify('Bolo B1 confermato ✓');
+  A.togMeal(i,true);A.closeMdl('m-bolo');
+};
+
+/* Confirm B1b (fine pasto) → add to IOB */
+A.confirmB1b=function(i){
+  var ds=todayStr();
+  if(!D[ds]||!D[ds].pendingB1b||!D[ds].pendingB1b[''+i])return;
+  var pb=D[ds].pendingB1b[''+i];
+  if(!D[ds].boluses)D[ds].boluses=[];
+  D[ds].boluses.push({time:Date.now(),units:pb.units,type:'b1b'});
+  delete D[ds].pendingB1b[''+i];
+  save();A.rOggi();A.rHome();
+  A.notify('B1b '+pb.units.toFixed(1)+' U → IOB ✓');
 };
 
 /* ---------- REMINDERS ---------- */
@@ -1030,30 +1064,122 @@ A.confirmFood=function(){
 };
 
 /* ---------- BARCODE ---------- */
+var _bcInterval=null;
+var _bcHasDet=typeof BarcodeDetector!=='undefined';
+
 A.startScan=function(){
   A.closeMdl('m-addfood');A.openMdl('m-barcode');
   $('bc-res').innerHTML='';$('bc-man').value='';
+  $('bc-status').textContent='';
+
+  if(!_bcHasDet){
+    $('bc-status').innerHTML='<span style="color:#FBBC2C">BarcodeDetector non supportato — usa 📸 Scatta Foto o inserisci il codice</span>';
+  }
+
   if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
-    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}})
     .then(function(stream){
-      bcStream=stream;$('bc-vid').srcObject=stream;
-      if(typeof BarcodeDetector!=='undefined'){
+      bcStream=stream;
+      var vid=$('bc-vid');
+      vid.srcObject=stream;
+      vid.setAttribute('playsinline','');
+      vid.muted=true;
+      vid.play().catch(function(){});
+
+      if(_bcHasDet){
+        $('bc-status').textContent='Inquadra il barcode...';
         var det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e']});
-        var vid=$('bc-vid');
-        var si=setInterval(function(){
-          if(!bcStream){clearInterval(si);return}
+        _bcInterval=setInterval(function(){
+          if(!bcStream){clearInterval(_bcInterval);_bcInterval=null;return}
+          if(vid.readyState<2)return; /* HAVE_CURRENT_DATA */
           det.detect(vid).then(function(bc){
-            if(bc.length>0){clearInterval(si);$('bc-man').value=bc[0].rawValue;A.lookupBC()}
-          }).catch(function(){});
-        },500);
+            if(bc.length>0){
+              clearInterval(_bcInterval);_bcInterval=null;
+              $('bc-man').value=bc[0].rawValue;
+              $('bc-status').innerHTML='<span style="color:#64D68A">Trovato: '+bc[0].rawValue+'</span>';
+              if(navigator.vibrate)navigator.vibrate(100);
+              A.lookupBC();
+            }
+          }).catch(function(e){
+            $('bc-status').innerHTML='<span style="color:#FBBC2C">Scansione lenta... prova 📸 Scatta Foto</span>';
+          });
+        },600);
       }
-    }).catch(function(){$('bc-res').innerHTML='<div style="color:#FBBC2C">Camera non disponibile</div>'});
+    }).catch(function(e){
+      $('bc-status').innerHTML='<span style="color:#EF6B6B">Camera non disponibile: '+(e.message||'errore')+'</span>';
+    });
+  }else{
+    $('bc-status').innerHTML='<span style="color:#EF6B6B">Camera non supportata — usa 📸 o codice manuale</span>';
   }
 };
 
 A.stopScan=function(){
+  if(_bcInterval){clearInterval(_bcInterval);_bcInterval=null}
   if(bcStream){var tr=bcStream.getTracks();for(var i=0;i<tr.length;i++)tr[i].stop();bcStream=null}
-  $('bc-vid').srcObject=null;
+  var vid=$('bc-vid');if(vid)vid.srcObject=null;
+};
+
+/* Snap photo from live video → detect barcode on still frame */
+A.snapBarcode=function(){
+  var vid=$('bc-vid');
+  if(vid&&vid.readyState>=2&&bcStream){
+    /* Capture frame to canvas */
+    var cvs=document.createElement('canvas');
+    cvs.width=vid.videoWidth;cvs.height=vid.videoHeight;
+    cvs.getContext('2d').drawImage(vid,0,0);
+    $('bc-status').textContent='Analizzando foto...';
+    if(_bcHasDet){
+      var det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e']});
+      det.detect(cvs).then(function(bc){
+        if(bc.length>0){
+          $('bc-man').value=bc[0].rawValue;
+          $('bc-status').innerHTML='<span style="color:#64D68A">Trovato: '+bc[0].rawValue+'</span>';
+          if(navigator.vibrate)navigator.vibrate(100);
+          A.lookupBC();
+        }else{
+          $('bc-status').innerHTML='<span style="color:#FBBC2C">Nessun barcode trovato — riprova o inserisci il codice</span>';
+        }
+      }).catch(function(){
+        $('bc-status').innerHTML='<span style="color:#EF6B6B">Errore analisi — inserisci il codice manualmente</span>';
+      });
+    }else{
+      $('bc-status').innerHTML='<span style="color:#FBBC2C">BarcodeDetector non disponibile — inserisci il codice</span>';
+    }
+  }else{
+    /* Fallback: open native file picker */
+    $('bc-file').click();
+  }
+};
+
+/* Handle photo from native file picker (iOS camera) */
+A.onBCFile=function(inp){
+  if(!inp.files||!inp.files[0])return;
+  $('bc-status').textContent='Analizzando immagine...';
+  var img=new Image();
+  img.onload=function(){
+    var cvs=document.createElement('canvas');
+    cvs.width=img.width;cvs.height=img.height;
+    cvs.getContext('2d').drawImage(img,0,0);
+    if(_bcHasDet){
+      var det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e']});
+      det.detect(cvs).then(function(bc){
+        if(bc.length>0){
+          $('bc-man').value=bc[0].rawValue;
+          $('bc-status').innerHTML='<span style="color:#64D68A">Trovato: '+bc[0].rawValue+'</span>';
+          if(navigator.vibrate)navigator.vibrate(100);
+          A.lookupBC();
+        }else{
+          $('bc-status').innerHTML='<span style="color:#FBBC2C">Nessun barcode — inserisci il codice manualmente</span>';
+        }
+      }).catch(function(){
+        $('bc-status').innerHTML='<span style="color:#EF6B6B">Errore — inserisci il codice</span>';
+      });
+    }else{
+      $('bc-status').innerHTML='<span style="color:#FBBC2C">BarcodeDetector non disponibile — inserisci il codice</span>';
+    }
+  };
+  img.src=URL.createObjectURL(inp.files[0]);
+  inp.value='';
 };
 
 A.lookupBC=function(){
