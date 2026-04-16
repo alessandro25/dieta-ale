@@ -621,8 +621,23 @@ A.showBolo=function(i){
   _boloTmpSplitA=S.splitStart||60;
   _boloTmpSplitB=S.splitEnd||40;
   $('bo-detail').innerHTML=renderBoloContent(ml,gly,_boloTmpSplitA,_boloTmpSplitB);
+  /* Past meal warning */
+  var ts=mealTime(ml);
+  var ageMin=Math.round((Date.now()-ts)/60000);
+  var diaMin=S.dia||135;
+  var warnH='';
+  if(ageMin>=30){
+    var isOld=ageMin>=diaMin;
+    var bgCol=isOld?'rgba(239,107,107,.15)':'rgba(251,188,44,.15)';
+    var txtCol=isOld?'#EF6B6B':'#FBBC2C';
+    warnH+='<div style="background:'+bgCol+';padding:10px;border-radius:8px;margin-top:8px;font-size:13px;color:'+txtCol+'">';
+    warnH+='⏰ Pasto delle '+ml.time+' — passati '+ageMin+' min. ';
+    if(isOld) warnH+='<strong>Oltre il DIA ('+diaMin+' min): il bolo sarà registrato solo a memoria, NON in IOB attivo.</strong>';
+    else warnH+='Il bolo sarà registrato con l\'ora del pasto (IOB decay corretto).';
+    warnH+='</div>';
+  }
   /* Split % editor */
-  var sh='';
+  var sh=warnH;
   if(S.splitBolus){
     sh+='<div style="background:#24242E;border-radius:10px;padding:10px;margin-top:8px">';
     sh+='<div style="font-size:12px;font-weight:600;color:#9898A6;margin-bottom:6px">Modifica Split %</div>';
@@ -672,46 +687,81 @@ A.updBoloSplit=function(i){
   $('bo-detail').innerHTML=renderBoloContent(ml,gly,a,b);
 };
 
+/* Compute bolus timestamp from meal time (today's date + meal HH:MM).
+   If meal time is in the future (planning mistake), fall back to now. */
+function mealTime(ml){
+  if(!ml||!ml.time)return Date.now();
+  var now=new Date();
+  var p=ml.time.split(':');
+  var h=parseInt(p[0]);var mi=parseInt(p[1]);
+  if(isNaN(h)||isNaN(mi))return Date.now();
+  var dt=new Date(now.getFullYear(),now.getMonth(),now.getDate(),h,mi,0,0);
+  var mt=dt.getTime();
+  /* If meal time is in the future today, use now instead */
+  if(mt>Date.now())return Date.now();
+  return mt;
+}
+
 A.confirmBolo=function(){
   var i=parseInt($('m-bolo').getAttribute('data-mi'));
   var ds=todayStr();
   if(!D[ds])D[ds]={};
   var meals=todayMeals();
   if(meals[i]){
-    var gly=lastGly();var bo=calcBolus(meals[i].foods,gly);
+    var ml=meals[i];
+    var gly=lastGly();var bo=calcBolus(ml.foods,gly);
     if(!D[ds].boluses)D[ds].boluses=[];
+    /* Use meal time as timestamp — if meal is from hours ago, IOB decay
+       will be correct (or bolus will be automatically ignored if > DIA) */
+    var ts=mealTime(ml);
+    var ageMin=Math.round((Date.now()-ts)/60000);
+    var diaMin=S.dia||135;
+    var isOld=ageMin>=diaMin;
     /* Save split % used at confirmation time */
     if(S.splitBolus){
       S.splitStart=_boloTmpSplitA;
       S.splitEnd=_boloTmpSplitB;
-      /* Recalc with current split */
       var b1a=r2(bo.b1*(_boloTmpSplitA/100));
       var b1b=r2(bo.b1*(_boloTmpSplitB/100));
-      /* Register ONLY B1a (inizio pasto) in IOB */
-      D[ds].boluses.push({time:Date.now(),units:b1a,type:'b1a'});
-      /* Store pending B1b for later confirmation */
+      D[ds].boluses.push({time:ts,units:b1a,type:'b1a'});
       if(!D[ds].pendingB1b)D[ds].pendingB1b={};
-      D[ds].pendingB1b[''+i]={units:b1b,pct:_boloTmpSplitB};
-      A.notify('B1a '+b1a.toFixed(1)+'U → IOB · B1b '+b1b.toFixed(1)+'U in attesa');
+      D[ds].pendingB1b[''+i]={units:b1b,pct:_boloTmpSplitB,mealTs:ts};
+      if(isOld){
+        A.notify('Pasto di '+ageMin+' min fa — bolo registrato a memoria, non in IOB');
+      }else{
+        A.notify('B1a '+b1a.toFixed(1)+'U → IOB · B1b '+b1b.toFixed(1)+'U in attesa');
+      }
     }else{
-      /* No split: register entire B1 */
-      D[ds].boluses.push({time:Date.now(),units:bo.b1,type:'b1'});
-      A.notify('Bolo B1 confermato ✓');
+      D[ds].boluses.push({time:ts,units:bo.b1,type:'b1'});
+      if(isOld){
+        A.notify('Pasto di '+ageMin+' min fa — bolo a memoria, non in IOB');
+      }else{
+        A.notify('Bolo B1 confermato ✓');
+      }
     }
-    /* Schedule B2 reminder (will require separate confirmation via confirmB2) */
-    if(S.reminder&&bo.b2>0) schedRem(meals[i].name,bo.b2);
+    /* Schedule B2 reminder only if meal is recent enough for it to make sense */
+    if(S.reminder&&bo.b2>0&&!isOld) schedRem(ml.name,bo.b2);
     save();
   }
   A.togMeal(i,true);A.closeMdl('m-bolo');
 };
 
-/* Confirm B1b (fine pasto) → add to IOB */
+/* Confirm B1b (fine pasto) → add to IOB with meal-relative timestamp */
 A.confirmB1b=function(i){
   var ds=todayStr();
   if(!D[ds]||!D[ds].pendingB1b||!D[ds].pendingB1b[''+i])return;
   var pb=D[ds].pendingB1b[''+i];
   if(!D[ds].boluses)D[ds].boluses=[];
-  D[ds].boluses.push({time:Date.now(),units:pb.units,type:'b1b'});
+  /* B1b timestamp: now (user is confirming they took it now),
+     unless meal was very old — in that case use mealTs+30min estimate */
+  var now=Date.now();
+  var ts=now;
+  if(pb.mealTs&&(now-pb.mealTs)>30*60000){
+    /* Meal was long ago — assume B1b was supposed to be ~30min after */
+    ts=pb.mealTs+30*60000;
+    if(ts>now)ts=now;
+  }
+  D[ds].boluses.push({time:ts,units:pb.units,type:'b1b'});
   delete D[ds].pendingB1b[''+i];
   save();A.rOggi();A.rHome();
   A.notify('B1b '+pb.units.toFixed(1)+' U → IOB ✓');
