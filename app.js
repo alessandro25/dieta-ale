@@ -594,7 +594,34 @@ function renderBoloContent(ml,gly,splitA,splitB){
     bo.b1a=r2(bo.b1*(splitA/100));
     bo.b1b=r2(bo.b1*(splitB/100));
   }
-  var h='<div style="font-size:17px;font-weight:700;margin-bottom:12px">'+ml.name+'</div>';
+  var h='';
+  /* LOW GLYCEMIA WARNING — Regola del 15 */
+  if(gly&&gly<80){
+    h+='<div style="background:rgba(239,107,107,.15);border:1px solid rgba(239,107,107,.4);border-radius:12px;padding:14px;margin-bottom:12px">';
+    h+='<div style="font-size:18px;text-align:center;margin-bottom:6px">🚨</div>';
+    if(gly<54){
+      h+='<div style="font-size:15px;font-weight:700;color:#EF6B6B;text-align:center;margin-bottom:6px">Ipoglicemia Severa — '+gly+' mg/dL</div>';
+      h+='<div style="font-size:12px;color:#E8E8ED">Trattamento urgente necessario:</div>';
+    }else if(gly<70){
+      h+='<div style="font-size:15px;font-weight:700;color:#EF6B6B;text-align:center;margin-bottom:6px">Ipoglicemia — '+gly+' mg/dL</div>';
+    }else{
+      h+='<div style="font-size:15px;font-weight:700;color:#FBBC2C;text-align:center;margin-bottom:6px">Glicemia Bassa — '+gly+' mg/dL</div>';
+    }
+    h+='<div style="font-size:13px;color:#E8E8ED;margin-top:6px"><strong>Regola del 15:</strong></div>';
+    h+='<div style="font-size:12px;color:#9898A6;margin-top:4px">';
+    h+='1. Assumi <strong>15g di carboidrati rapidi</strong> (3 bustine zucchero, o 125ml succo/cola, o 1 cucchiaio miele)</div>';
+    h+='<div style="font-size:12px;color:#9898A6;margin-top:3px">2. Aspetta <strong>15 minuti</strong></div>';
+    h+='<div style="font-size:12px;color:#9898A6;margin-top:3px">3. Ricontrolla glicemia → ripeti se ancora <strong>&lt; 100 mg/dL</strong></div>';
+    h+='<div style="font-size:12px;color:#FBBC2C;margin-top:8px;font-weight:600">⏳ NON somministrare il bolo adesso — attendi la risalita glicemica sopra 100 mg/dL</div>';
+    /* Estimate carb adjustment */
+    var deficit=100-gly;
+    var corrCarb=r1(deficit*(S.icr/S.isf));
+    if(corrCarb>0){
+      h+='<div style="font-size:11px;color:#6B6B7A;margin-top:6px">La correzione negativa ('+(gly)+' → '+S.target+') sottrae '+Math.abs(bo.corr).toFixed(2)+' U dal bolo</div>';
+    }
+    h+='</div>';
+  }
+  h+='<div style="font-size:17px;font-weight:700;margin-bottom:12px">'+ml.name+'</div>';
   h+='<div style="font-size:13px;color:#9898A6;margin-bottom:12px">C '+bo.m.carb+'g · P '+bo.m.prot+'g · G '+bo.m.fat+'g';
   if(gly) h+=' · Glicemia: '+gly+' mg/dL';
   h+='</div><div class="bolo">';
@@ -981,6 +1008,7 @@ A.showDeltaBolo=function(name,dCarb,dFP,dB1,dB2){
 A.openAddFood=function(){
   rRecentFreq();
   rCats();$('f-srch').value='';A.filterF();
+  $('f-online').style.display='none';$('f-online').innerHTML='';
   A.closeMdl('m-edit');A.openMdl('m-addfood');
 };
 
@@ -1066,8 +1094,69 @@ A.filterF=function(){
     h+='<div class="sn">'+fd.n+'</div>';
     h+='<div class="sm">'+fd.k+' kcal · C'+fd.ca+' P'+fd.p+' G'+fd.f+' — '+fd.c+'</div></div>';
   }
-  if(!res.length) h='<div style="text-align:center;color:#6B6B7A;padding:16px">Nessun risultato</div>';
+  if(!res.length) h='<div style="text-align:center;color:#6B6B7A;padding:16px">Nessun risultato — prova <strong>🌐 Cerca Online</strong></div>';
   $('f-res').innerHTML=h;
+  $('f-online').style.display='none';
+};
+
+/* ---------- ONLINE FOOD SEARCH (Open Food Facts) ---------- */
+var _onlineFoods=[];
+
+A.searchOnline=function(){
+  var q=$('f-srch').value.trim();
+  if(!q||q.length<2){A.notify('Scrivi almeno 2 caratteri');return}
+  $('f-online').style.display='block';
+  $('f-online').innerHTML='<div style="text-align:center;color:#9898A6;padding:12px">🌐 Cercando "'+q+'"...</div>';
+  $('f-res').innerHTML='';
+  _onlineFoods=[];
+  fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(q)+'&search_simple=1&action=process&json=1&page_size=15&lc=it')
+  .then(function(r){return r.json()})
+  .then(function(data){
+    if(!data.products||data.products.length===0){
+      $('f-online').innerHTML='<div style="text-align:center;color:#6B6B7A;padding:12px">Nessun risultato online</div>';
+      return;
+    }
+    var h='<div style="font-size:12px;font-weight:600;color:#9898A6;margin-bottom:6px">🌐 Risultati Online ('+data.products.length+')</div>';
+    for(var i=0;i<data.products.length;i++){
+      var p=data.products[i];
+      var nm=p.nutriments||{};
+      var name=p.product_name||p.product_name_it||'';
+      if(!name)continue;
+      var brand=p.brands||'';
+      var label=name+(brand?' — '+brand:'');
+      if(label.length>60) label=label.substring(0,57)+'...';
+      var fd={n:label,c:'Online',
+        k:Math.round(nm['energy-kcal_100g']||0),
+        ca:r1(nm.carbohydrates_100g||0),
+        p:r1(nm.proteins_100g||0),
+        f:r1(nm.fat_100g||0),
+        fi:r1(nm.fiber_100g||0)};
+      var idx=_onlineFoods.length;
+      _onlineFoods.push(fd);
+      h+='<div class="si-item" onclick="A.pickOnlineFood('+idx+')">';
+      h+='<div class="sn" style="font-size:13px">'+label+'</div>';
+      h+='<div class="sm">'+fd.k+' kcal · C'+fd.ca+' P'+fd.p+' G'+fd.f+'</div></div>';
+    }
+    $('f-online').innerHTML=h;
+  }).catch(function(e){
+    $('f-online').innerHTML='<div style="text-align:center;color:#EF6B6B;padding:12px">Errore rete — controlla la connessione</div>';
+  });
+};
+
+A.pickOnlineFood=function(idx){
+  var fd=_onlineFoods[idx];
+  if(!fd)return;
+  /* Save to custom foods if not already present */
+  var ex=false;
+  for(var i=0;i<cFoods.length;i++){if(cFoods[i].n===fd.n){ex=true;break}}
+  if(!ex){cFoods.push(fd);lsS('dp_cfood',cFoods)}
+  selFood=fd;
+  $('fg-title').textContent=fd.n;
+  $('fg-info').textContent='Per 100g: '+fd.k+' kcal · C'+fd.ca+' P'+fd.p+' G'+fd.f;
+  $('fg-portions').innerHTML='';
+  $('fg-g').value=100;A.prevGrams();
+  A.closeMdl('m-addfood');A.openMdl('m-grams');
+  A.notify('Salvato nei tuoi alimenti ✓');
 };
 
 A.pickFood=function(name){
