@@ -213,6 +213,10 @@ window.onerror=function(m,s,l,c,e){
   <div id="f-recent"></div>
   <div class="chips" id="f-cats"></div>
   <div class="srch"><span class="si">🔍</span><input type="text" class="inp" id="f-srch" placeholder="Cerca alimento..." oninput="A.filterF()"></div>
+  <div style="display:flex;gap:6px;margin:8px 0">
+    <button class="btn btn-sm btn-bl" style="flex:1" onclick="A.searchOnline()">🌐 Cerca Online</button>
+  </div>
+  <div id="f-online" style="display:none"></div>
   <div class="sres" id="f-res"></div>
   <div style="margin-top:12px;padding-top:12px;border-top:1px solid #2A2A36">
     <button class="btn btn-sm btn-o btn-bk" onclick="A.startScan()">📷 Scansiona Barcode</button>
